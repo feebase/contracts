@@ -1,0 +1,102 @@
+{
+	"deploy": {
+		"VM:-": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"main:1": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"ropsten:3": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"rinkeby:4": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"kovan:42": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"goerli:5": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		},
+		"Custom": {
+			"linkReferences": {},
+			"autoDeployLib": true
+		}
+	},
+	"data": {
+		"bytecode": {
+			"functionDebugData": {},
+			"generatedSources": [],
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		},
+		"deployedBytecode": {
+			"functionDebugData": {},
+			"generatedSources": [],
+			"immutableReferences": {},
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		},
+		"gasEstimates": null,
+		"methodIdentifiers": {
+			"poolManager()": "dc4c90d3"
+		}
+	},
+	"abi": [
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "minAmountOutReceived",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "amountReceived",
+					"type": "uint256"
+				}
+			],
+			"name": "V4TooLittleReceived",
+			"type": "error"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "maxAmountInRequested",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "amountRequested",
+					"type": "uint256"
+				}
+			],
+			"name": "V4TooMuchRequested",
+			"type": "error"
+		},
+		{
+			"inputs": [],
+			"name": "poolManager",
+			"outputs": [
+				{
+					"internalType": "contract IPoolManager",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	]
+}

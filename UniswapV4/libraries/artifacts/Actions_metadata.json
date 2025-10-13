@@ -1,0 +1,47 @@
+{
+	"compiler": {
+		"version": "0.8.26+commit.8a97fa7a"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [],
+		"devdoc": {
+			"details": "These are suggested common commands, however additional commands should be defined as required Some of these actions are not supported in the Router contracts or Position Manager contracts, but are left as they may be helpful commands for other peripheral contracts.",
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"notice": "Library to define different pool actions.",
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"UniswapV4/libraries/Actions.sol": "Actions"
+		},
+		"evmVersion": "cancun",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": true,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"UniswapV4/libraries/Actions.sol": {
+			"keccak256": "0x3759fe14a685216f7f9623c892561f41fd885a5f6e5ec5b51a94ca2616bd8fbd",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://3c9003f2b9f8201ba76e3e9bf475c78ddc4c3884c24824b190af48ec24a252eb",
+				"dweb:/ipfs/QmSQE1ksGXj5jG1CK7LG8XTSoksSBLU1tKKsjybZFwpq8A"
+			]
+		}
+	},
+	"version": 1
+}

@@ -1,0 +1,47 @@
+{
+	"compiler": {
+		"version": "0.8.26+commit.8a97fa7a"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"title": "Commands",
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"notice": "Command Flags used to decode commands",
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"UniswapV4/libraries/Commands.sol": "Commands"
+		},
+		"evmVersion": "cancun",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": true,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"UniswapV4/libraries/Commands.sol": {
+			"keccak256": "0xe60cfbed557e3b8867dd243e53c1e1ce5b1898fc335644af09b0d320e70e5e69",
+			"license": "GPL-3.0-or-later",
+			"urls": [
+				"bzz-raw://33a9776038041b0b7cc9af03f21d52cddfa16bb55bb166f87c581b5502272dac",
+				"dweb:/ipfs/QmfMhGfLqxAfAGJasyxakU8WQevpzXzBg2WeDL3Uzcqytu"
+			]
+		}
+	},
+	"version": 1
+}
