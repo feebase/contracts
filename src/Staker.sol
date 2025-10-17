@@ -68,10 +68,19 @@ contract Staker is Ownable, ReentrancyGuard {
 
     modifier isAuthorized(address user) {
         require(
-            msg.sender == user || (
-                address(this) == user && msg.sender == owner()
-            ),
-            "Invalid account"
+            user == msg.sender ||
+            _accounts[user].delegates.contains(msg.sender),
+            "Not authorized"
+        );
+        _;
+    }
+
+    modifier isAuthorizedOrOwner(address user) {
+        require(
+            user == msg.sender ||
+            _accounts[user].delegates.contains(msg.sender) ||
+            (user == address(this) && msg.sender == owner()),
+            "Not authorized"
         );
         _;
     }
@@ -220,7 +229,7 @@ contract Staker is Ownable, ReentrancyGuard {
         address user,
         address[] memory pools,
         bool useGasCap
-    ) public isAuthorized(user) {
+    ) public isAuthorizedOrOwner(user) {
         for (uint i = 0; i < pools.length; i++) {
             address payable pool = payable(pools[i]);
             if (useGasCap) {
