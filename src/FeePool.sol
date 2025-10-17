@@ -65,15 +65,16 @@ contract FeePool {
         _;
     }
 
-    constructor(address staker, address swapConfig) {
+    constructor(address staker, address payable swapConfig) {
         FEE_POOL_TEMPLATE = address(this);
         STAKER = staker;
         SWAP_CONFIG = SwapConfig(swapConfig);
     }
 
     function init(address token, uint duration) external {
-        require(duration > 0, "Invalid Duration");
         require(rewardDuration == 0, "Already Initialized");
+        require(token != address(0), "Invalid token");
+        require(duration > 0, "Invalid Duration");
         rewardDuration = duration;
         rewardToken = IERC20Metadata(token);
         uint decimals = rewardToken.decimals();
@@ -122,12 +123,20 @@ contract FeePool {
 
     function addEthReward(bytes memory data) public payable {
         WETH.deposit{value: msg.value}();
-        swapAndAddReward(address(WETH), msg.value, data);
+        if (address(rewardToken) == address(WETH)) {
+            _addReward(msg.value);
+        } else {
+            swapAndAddReward(address(WETH), msg.value, data);
+        }
     }
 
     function addTokenReward(address token, uint quantity, bytes memory data) public {
         require(IERC20(token).transferFrom(msg.sender, address(this), quantity), "Unable to transfer token");
-        swapAndAddReward(token, quantity, data);
+        if (address(rewardToken) == token) {
+            _addReward(quantity);
+        } else {
+            swapAndAddReward(token, quantity, data);
+        }
     }
 
     function swapAndAddReward(address token, uint quantity, bytes memory data) public {

@@ -15,7 +15,8 @@ contract Staker is Ownable, ReentrancyGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    address public immutable SWAP_CONFIG;
+    address public constant WETH = 0x4200000000000000000000000000000000000006;
+    address payable public immutable SWAP_CONFIG;
 
     address private _poolTemplate;
     address private _stakeCreditTemplate;
@@ -38,17 +39,8 @@ contract Staker is Ownable, ReentrancyGuard {
         uint stakes;
         bool errors;
     }
-
     mapping(address => Account) private _accounts;
     mapping(address => Pool) private _pools;
-
-    event ClaimReward (
-        address indexed account,
-        address indexed pool,
-        address indexed token,
-        uint quantity,
-        uint timestamp
-    );
 
     event Stake (
         address indexed user,
@@ -56,9 +48,15 @@ contract Staker is Ownable, ReentrancyGuard {
         uint quantity,
         uint timestamp
     );
-
     event Unstake (
         address indexed user,
+        address indexed token,
+        uint quantity,
+        uint timestamp
+    );
+    event ClaimReward (
+        address indexed account,
+        address indexed pool,
         address indexed token,
         uint quantity,
         uint timestamp
@@ -83,13 +81,17 @@ contract Staker is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address swapConfig) {
+    constructor(address payable swapConfig) {
         SWAP_CONFIG = swapConfig;
         _poolTemplate = address(new FeePool(address(this), swapConfig));
         _stakeCreditTemplate = address(new StakeCredit(address(this)));
     }
 
     function createPool(address stakeToken, address rewardToken, uint rewardDurationDays) external returns (address) {
+        require(stakeToken != address(0), "Invalid Stake Token");
+        if (rewardToken == address(0)) {
+            rewardToken = WETH;
+        }
         bytes32 poolKey = _getPoolKey(stakeToken, rewardToken, rewardDurationDays);
         require(_poolByKey[poolKey] == address(0), "Pool already exists");
 
@@ -112,10 +114,14 @@ contract Staker is Ownable, ReentrancyGuard {
         address user,
         address token,
         uint quantity,
+        bool customize,
         address[] memory customPools
     ) external nonReentrant isAuthorized(user) {
         require(quantity > 0, "Invalid token quantity");
-        require(IERC20(token).transferFrom(user, address(this), quantity), "Unable to stake token");
+        require(
+            IERC20(token).transferFrom(user, address(this), quantity),
+            "Unable to stake token"
+        );
         _getStakeCredit(token).mint(user, quantity);
 
         Account storage account = _accounts[user];
@@ -124,9 +130,9 @@ contract Staker is Ownable, ReentrancyGuard {
 
         if (staking) {
             // Add stake to the account's existing pools
-            address[] memory pools = account.tokenPools[token].values();
-            for (uint i = 0; i < pools.length; i++) {
-                address payable pool = payable(pools[i]);
+            address[] memory accountPools = account.tokenPools[token].values();
+            for (uint i = 0; i < accountPools.length; i++) {
+                address payable pool = payable(accountPools[i]);
                 FeePool(pool).stake(user, quantity);
                 _pools[pool].stakes += quantity;
             }
@@ -134,12 +140,12 @@ contract Staker is Ownable, ReentrancyGuard {
             _tokenStakers[token].add(user);
         }
 
-        if (customPools.length > 0) {
+        if (customize) {
             joinPools(user, customPools);
         } else {
-            joinPools(user, _tokenListedPools[token].values());
+            address[] memory listedPools = _tokenListedPools[token].values();
+            joinPools(user, listedPools);
         }
-
         emit Stake(user, token, quantity, block.timestamp);
     }
 
@@ -148,20 +154,20 @@ contract Staker is Ownable, ReentrancyGuard {
         address token,
         uint quantity
     ) public nonReentrant isAuthorized(user) {
-        _getStakeCredit(token).burn(user, quantity);
         Account storage account = _accounts[user];
-        EnumerableSet.AddressSet storage tokenPools = account.tokenPools[token];
         uint stakes = account.tokenStakes.get(token);
         bool unstakeAll = quantity == stakes;
-        require(quantity > 0 && quantity <= stakes, "Invalid token quantity");
+        require(quantity > 0, "Invalid token quantity");
+        require(quantity <= stakes, "Quantity exceeds stake");
+        _getStakeCredit(token).burn(user, quantity);
 
-        address[] memory pools = tokenPools.values();
+        address[] memory stakedPools = account.tokenPools[token].values();
         if (unstakeAll) {
-            leavePools(user, pools, false);
+            leavePools(user, stakedPools, false);
             _tokenStakers[token].remove(user);
         } else {
-            for (uint i = 0; i < pools.length; i++) {
-                address payable pool = payable(pools[i]);
+            for (uint i = 0; i < stakedPools.length; i++) {
+                address payable pool = payable(stakedPools[i]);
                 try FeePool(pool).unstake(user, quantity) { }
                 catch {
                     _pools[pool].errors = true;
@@ -170,9 +176,10 @@ contract Staker is Ownable, ReentrancyGuard {
             }
         }
         account.tokenStakes.set(token, stakes - quantity);
-
-        require(IERC20(token).transfer(user, quantity), "Unable to transfer tokens");
-
+        require(
+            IERC20(token).transfer(user, quantity),
+            "Unable to transfer tokens"
+        );
         emit Unstake(user, token, quantity, block.timestamp);
     }
 
@@ -181,11 +188,10 @@ contract Staker is Ownable, ReentrancyGuard {
         address[] memory pools
     ) public isAuthorized(user) {
         Account storage account = _accounts[user];
-        EnumerableMap.AddressToUintMap storage tokenStakes = account.tokenStakes;
         for (uint i = 0; i < pools.length; i++) {
             address payable pool = payable(pools[i]);
             address token = _pools[pool].stakeToken;
-            (,uint quantity) = tokenStakes.tryGet(token);
+            (,uint quantity) = account.tokenStakes.tryGet(token);
             if (quantity > 0 && account.tokenPools[token].add(pool)) {
                 FeePool(pool).stake(user, quantity);
                 _pools[pool].stakes += quantity;
@@ -199,11 +205,10 @@ contract Staker is Ownable, ReentrancyGuard {
         bool useGasCap
     ) public isAuthorized(user) {
         Account storage account = _accounts[user];
-        EnumerableMap.AddressToUintMap storage tokenStakes = account.tokenStakes;
         for (uint i = 0; i < pools.length; i++) {
             address payable pool = payable(pools[i]);
             address token = _pools[pool].stakeToken;
-            (,uint quantity) = tokenStakes.tryGet(token);
+            (,uint quantity) = account.tokenStakes.tryGet(token);
             if (quantity > 0 && account.tokenPools[token].remove(pool)) {
                 if (useGasCap) {
                     try FeePool(pool).unstake{ gas: 1000000 }(user, quantity) { }
@@ -262,9 +267,10 @@ contract Staker is Ownable, ReentrancyGuard {
 
     function forceUnstake(address user, address token) external {
         uint stakes = _accounts[user].tokenStakes.get(token);
-        address[] memory pools = _accounts[user].tokenPools[token].values();
         require(stakes > 0, "Token not staked");
-        leavePools(user, pools, true);
+
+        address[] memory stakedPools = _accounts[user].tokenPools[token].values();
+        leavePools(user, stakedPools, true);
         unstake(user, token, stakes);
     }
 
@@ -292,12 +298,15 @@ contract Staker is Ownable, ReentrancyGuard {
     }
 
     function _getPoolKey(address stakeToken, address rewardToken, uint rewardDurationDays) internal pure returns (bytes32) {
+        if (rewardToken == address(0)) {
+            rewardToken = WETH;
+        }
         return keccak256(abi.encode(stakeToken, rewardToken, rewardDurationDays));
     }
 
     function _getStakeCredit(address token) internal returns (StakeCredit) {
         address stakeCredit = _tokenStakeCredit[token];
-        if (stakeCredit != address(0)) {
+        if (stakeCredit == address(0)) {
             stakeCredit = Clones.clone(_stakeCreditTemplate);
             StakeCredit(stakeCredit).initialize(token);
             _tokenStakeCredit[token] = stakeCredit;
