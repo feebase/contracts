@@ -18,7 +18,7 @@ contract StakeCredit is ERC20Snapshot {
         STAKER = staker;
     }
 
-    function initialize(address token) external {
+    function initialize(address token) external onlyStaker {
         require(_token == address(0), "Already initialized");
         require(token != address(0), "Invalid token address");
         _token = token;

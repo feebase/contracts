@@ -12,11 +12,9 @@ import { SwapConfig } from "./SwapConfig.sol";
 import { FeePool } from "./FeePool.sol";
 
 contract Staker is Ownable, ReentrancyGuard {
-    using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    address public immutable STAKER;
     address public immutable SWAP_CONFIG;
 
     address private _poolTemplate;
@@ -85,8 +83,7 @@ contract Staker is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address staker, address swapConfig) {
-        STAKER = staker;
+    constructor(address swapConfig) {
         SWAP_CONFIG = swapConfig;
         _poolTemplate = address(new FeePool(address(this), swapConfig));
         _stakeCreditTemplate = address(new StakeCredit(address(this)));
