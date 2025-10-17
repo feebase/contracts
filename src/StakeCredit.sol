@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import { ERC20Snapshot, ERC20 } from "@openzeppelin/contracts@4.9.5/token/ERC20/extensions/ERC20Snapshot.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts@4.9.5/token/ERC20/extensions/IERC20Metadata.sol";
 
-contract StakerToken is ERC20Snapshot {
+contract StakeCredit is ERC20Snapshot {
     address public immutable STAKER;
     address private _token;
     mapping(uint => uint) private _snapshotTime;
