@@ -44,7 +44,7 @@ contract Staker is Ownable, ReentrancyGuard {
     mapping(address => Account) private _accounts;
     mapping(address => Pool) private _pools;
 
-    event ClaimFee (
+    event ClaimReward (
         address indexed account,
         address indexed pool,
         address indexed token,
@@ -226,7 +226,7 @@ contract Staker is Ownable, ReentrancyGuard {
             if (useGasCap) {
                 try FeePool(pool).claimReward{ gas: 1000000 }(user) returns (address token, uint quantity) {
                     if (quantity > 0) {
-                        emit ClaimFee(user, pool, token, quantity, block.timestamp);
+                        emit ClaimReward(user, pool, token, quantity, block.timestamp);
                     }
                 } catch {
                     _pools[pool].errors = true;
@@ -234,7 +234,7 @@ contract Staker is Ownable, ReentrancyGuard {
             } else {
                 try FeePool(pool).claimReward(user) returns (address token, uint quantity) {
                     if (quantity > 0) {
-                        emit ClaimFee(user, pool, token, quantity, block.timestamp);
+                        emit ClaimReward(user, pool, token, quantity, block.timestamp);
                     }
                 }
                 catch {
