@@ -5,6 +5,7 @@ import { ERC20Snapshot, ERC20 } from "@openzeppelin/contracts@4.9.5/token/ERC20/
 import { IERC20Metadata } from "@openzeppelin/contracts@4.9.5/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract StakeCredit is ERC20Snapshot {
+    address public immutable STAKE_CREDIT_TEMPLATE;
     address public immutable STAKER;
     address private _token;
     mapping(uint => uint) private _snapshotTime;
@@ -15,6 +16,7 @@ contract StakeCredit is ERC20Snapshot {
     }
 
     constructor(address staker) ERC20("", "") {
+        STAKE_CREDIT_TEMPLATE = address(this);
         STAKER = staker;
     }
 

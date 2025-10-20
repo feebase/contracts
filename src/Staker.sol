@@ -42,6 +42,13 @@ contract Staker is Ownable, ReentrancyGuard {
     mapping(address => Account) private _accounts;
     mapping(address => Pool) private _pools;
 
+    event CreatePool(
+        address indexed stakeToken,
+        address indexed rewardToken,
+        address indexed pool,
+        uint rewardDurationDays,
+        uint timestamp
+    );
     event Stake (
         address indexed user,
         address indexed token,
@@ -59,6 +66,26 @@ contract Staker is Ownable, ReentrancyGuard {
         address indexed pool,
         address indexed token,
         uint quantity,
+        uint timestamp
+    );
+    event AddDelegate (
+        address indexed user,
+        address indexed delegate,
+        uint timestamp
+    );
+    event RemoveDelegate(
+        address indexed user,
+        address indexed delegate,
+        uint timestamp
+    );
+    event ListPool(
+        address indexed token,
+        address indexed pool,
+        uint timestamp
+    );
+    event DelistPool(
+        address indexed token,
+        address indexed pool,
         uint timestamp
     );
 
@@ -88,7 +115,8 @@ contract Staker is Ownable, ReentrancyGuard {
     }
 
     function createPool(address stakeToken, address rewardToken, uint rewardDurationDays) external returns (address) {
-        require(stakeToken != address(0), "Invalid Stake Token");
+        require(stakeToken != address(0), "Invalid stake token");
+        require(createStakeCredit(stakeToken) != address(0), "Unable to create stake credit");
         if (rewardToken == address(0)) {
             rewardToken = WETH;
         }
@@ -97,7 +125,10 @@ contract Staker is Ownable, ReentrancyGuard {
 
         address payable pool = payable(Clones.clone(_poolTemplate));
         FeePool(pool).init(rewardToken, rewardDurationDays * (1 days));
-        FeePool(pool).stake(address(this), 1); // smallest amount, funds are never trapped if nobody else stakes
+
+        // Stake the minimum amount to prevent trapped rewards
+        FeePool(pool).stake(address(this), 1);
+        _accounts[address(this)].tokenPools[stakeToken].add(pool);
 
         _poolByKey[poolKey] = pool;
         _pools[pool] = Pool({
@@ -107,6 +138,7 @@ contract Staker is Ownable, ReentrancyGuard {
             stakes: 0,
             errors: false
         });
+        emit CreatePool(stakeToken, rewardToken, pool, rewardDurationDays, block.timestamp);
         return pool;
     }
 
@@ -141,8 +173,10 @@ contract Staker is Ownable, ReentrancyGuard {
         }
 
         if (customize) {
+            // Join the custom pools
             joinPools(user, customPools);
         } else {
+            // Join the listed pools
             address[] memory listedPools = _tokenListedPools[token].values();
             joinPools(user, listedPools);
         }
@@ -158,7 +192,7 @@ contract Staker is Ownable, ReentrancyGuard {
         uint stakes = account.tokenStakes.get(token);
         bool unstakeAll = quantity == stakes;
         require(quantity > 0, "Invalid token quantity");
-        require(quantity <= stakes, "Quantity exceeds stake");
+        require(quantity <= stakes, "Token quantity exceeds stake");
         _getStakeCredit(token).burn(user, quantity);
 
         address[] memory stakedPools = account.tokenPools[token].values();
@@ -168,11 +202,11 @@ contract Staker is Ownable, ReentrancyGuard {
         } else {
             for (uint i = 0; i < stakedPools.length; i++) {
                 address payable pool = payable(stakedPools[i]);
+                _pools[pool].stakes -= quantity;
                 try FeePool(pool).unstake(user, quantity) { }
                 catch {
                     _pools[pool].errors = true;
                 }
-                _pools[pool].stakes -= quantity;
             }
         }
         account.tokenStakes.set(token, stakes - quantity);
@@ -193,8 +227,9 @@ contract Staker is Ownable, ReentrancyGuard {
             address token = _pools[pool].stakeToken;
             (,uint quantity) = account.tokenStakes.tryGet(token);
             if (quantity > 0 && account.tokenPools[token].add(pool)) {
-                FeePool(pool).stake(user, quantity);
+                // Only stake if they haven't joined the pool
                 _pools[pool].stakes += quantity;
+                FeePool(pool).stake(user, quantity);
             }
         }
     }
@@ -210,6 +245,8 @@ contract Staker is Ownable, ReentrancyGuard {
             address token = _pools[pool].stakeToken;
             (,uint quantity) = account.tokenStakes.tryGet(token);
             if (quantity > 0 && account.tokenPools[token].remove(pool)) {
+                // Only unstake if they have joined the pool
+                _pools[pool].stakes -= quantity;
                 if (useGasCap) {
                     try FeePool(pool).unstake{ gas: 1000000 }(user, quantity) { }
                     catch {
@@ -221,7 +258,6 @@ contract Staker is Ownable, ReentrancyGuard {
                         _pools[pool].errors = true;
                     }
                 }
-                _pools[pool].stakes -= quantity;
             }
         }
         claimPoolRewards(user, pools, useGasCap);
@@ -255,6 +291,33 @@ contract Staker is Ownable, ReentrancyGuard {
         }
     }
 
+    function addDelegate(address delegate) external {
+        require(_accounts[msg.sender].delegates.add(delegate), "Delegate already added");
+        emit AddDelegate(msg.sender, delegate, block.timestamp);
+    }
+
+    function removeDelegate(address delegate) external {
+        require(_accounts[msg.sender].delegates.remove(delegate), "Address not a delegate");
+        emit RemoveDelegate(msg.sender, delegate, block.timestamp);
+    }
+
+    function listPool(address pool) external onlyOwner {
+        address token = _pools[pool].stakeToken;
+        require(token != address(0), "Pool not found");
+        require(_tokenListedPools[token].add(pool), "Pool already listed");
+        _listedTokens.add(token);
+        emit ListPool(token, pool, block.timestamp);
+    }
+
+    function delistPool(address pool) external onlyOwner {
+        address token = _pools[pool].stakeToken;
+        require(_tokenListedPools[token].remove(pool), "Pool not listed");
+        if (_tokenListedPools[token].length() == 0) {
+            _listedTokens.remove(token);
+        }
+        emit DelistPool(token, pool, block.timestamp);
+    }
+
     function claimRewards(address user, address token) external {
         address[] memory pools = _accounts[user].tokenPools[token].values();
         claimPoolRewards(user, pools, false);
@@ -274,30 +337,7 @@ contract Staker is Ownable, ReentrancyGuard {
         unstake(user, token, stakes);
     }
 
-    function addDelegate(address delegate) external {
-        _accounts[msg.sender].delegates.add(delegate);
-    }
-
-    function removeDelegate(address delegate) external {
-        _accounts[msg.sender].delegates.remove(delegate);
-    }
-
-    function listPool(address pool) external onlyOwner {
-        address token = _pools[pool].stakeToken;
-        require(token != address(0), "Pool not found");
-        _tokenListedPools[token].add(pool);
-        _listedTokens.add(token);
-    }
-
-    function delistPool(address pool) external onlyOwner {
-        address token = _pools[pool].stakeToken;
-        _tokenListedPools[token].remove(pool);
-        if (_tokenListedPools[token].length() == 0) {
-            _listedTokens.remove(token);
-        }
-    }
-
-    function createStakeCredit(address token) external returns (address) {
+    function createStakeCredit(address token) public returns (address) {
         return address(_getStakeCredit(token));
     }
 
