@@ -297,6 +297,10 @@ contract Staker is Ownable, ReentrancyGuard {
         }
     }
 
+    function createStakeCredit(address token) external returns (address) {
+        return address(_getStakeCredit(token));
+    }
+
     function _getPoolKey(address stakeToken, address rewardToken, uint rewardDurationDays) internal pure returns (bytes32) {
         if (rewardToken == address(0)) {
             rewardToken = WETH;

@@ -71,7 +71,7 @@ contract FeePool {
         SWAP_CONFIG = SwapConfig(swapConfig);
     }
 
-    function init(address token, uint duration) external {
+    function init(address token, uint duration) external onlyStaker {
         require(rewardDuration == 0, "Already Initialized");
         require(token != address(0), "Invalid token");
         require(duration > 0, "Invalid Duration");
