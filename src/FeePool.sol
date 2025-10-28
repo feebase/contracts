@@ -13,6 +13,7 @@ contract FeePool {
     SwapConfig public immutable SWAP_CONFIG;
 
     IERC20Metadata public rewardToken;
+    uint256 public reservedBalance;
     uint256 public rewardScalar;
     uint256 public rewardDuration;
     uint256 public periodFinish = 0;
@@ -101,6 +102,7 @@ contract FeePool {
         if (quantity > 0) {
             _userUnpaidRewards[user] = 0;
             _userPaidRewards[user] += quantity;
+            reservedBalance -= quantity;
             if (address(rewardToken) == address(WETH)) {
                 _withdrawing = true;
                 WETH.withdraw(quantity);
@@ -126,29 +128,43 @@ contract FeePool {
         if (address(rewardToken) == address(WETH)) {
             _addReward(msg.value);
         } else {
-            swapAndAddReward(address(WETH), msg.value, data);
+            _swapAndAddReward(address(WETH), msg.value, data);
         }
     }
 
-    function addTokenReward(address token, uint quantity, bytes memory data) public {
-        require(IERC20(token).transferFrom(msg.sender, address(this), quantity), "Unable to transfer token");
+    function addTokenReward(address token, bytes memory data) public {
+        if (address(rewardToken) == token) {
+            uint balanceBefore = rewardToken.balanceOf(address(this));
+            uint balanceAvailable = balanceBefore - reservedBalance;
+            _addReward(balanceAvailable);
+        } else {
+            uint quantity = IERC20(token).balanceOf(address(this));
+            _swapAndAddReward(token, quantity, data);
+        }
+    }
+
+    function addTokenRewardWithTransfer(address from, address token, uint quantity, bytes memory data) public {
+        require(IERC20(token).transferFrom(from, address(this), quantity), "Unable to transfer token");
         if (address(rewardToken) == token) {
             _addReward(quantity);
         } else {
-            swapAndAddReward(token, quantity, data);
+            _swapAndAddReward(token, quantity, data);
         }
     }
 
-    function swapAndAddReward(address token, uint quantity, bytes memory data) public {
-        uint balanceBefore = rewardToken.balanceOf(address(this));
+    function _swapAndAddReward(address token, uint quantity, bytes memory data) internal {
+        require(token != address(rewardToken), "Unable to swap reward token");
         address router = SWAP_CONFIG.getRouter();
         IERC20(token).approve(router, quantity);
-        ICustomRouter(router).swap(address(this), token, quantity, data);
-        _addReward(rewardToken.balanceOf(address(this)) - balanceBefore);
+        uint balanceBefore = rewardToken.balanceOf(address(this));
+        ICustomRouter(router).swap(token, quantity, address(rewardToken), address(this), data);
+        uint balanceAfter = rewardToken.balanceOf(address(this));
+        _addReward(balanceAfter - balanceBefore);
     }
 
     function _addReward(uint256 reward) internal updateReward(address(0)) {
         require(reward > 0, "Invalid reward");
+        reservedBalance += reward;
         reward *= rewardScalar;
         if (block.timestamp >= periodFinish) {
             rewardRate = reward / rewardDuration;

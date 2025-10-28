@@ -26,15 +26,6 @@ contract StakeCredit is ERC20Snapshot {
         _token = token;
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual override {
-        super._beforeTokenTransfer(from, to, amount);
-
-        if (from != address(0) && to != address(0)) {
-            // transfer
-            revert("Transfers disabled");
-        }
-    }
-
     function mint(address to, uint tokens) external onlyStaker {
         _mint(to, tokens);
     }
